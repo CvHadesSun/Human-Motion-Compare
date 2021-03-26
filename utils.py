@@ -213,6 +213,11 @@ def ProcessVideo(video_path,action_path,num_joints,frame_ratio,weight,mode='tors
     d=[]
     angle=[]
     t0=time.time()
+
+    #cvhadessun add 
+    t_sample = time.time()
+    time_interval = 1/5
+    #
     with mp_holistic.Holistic(
         min_detection_confidence=0.5,
         min_tracking_confidence=0.5) as holistic:
@@ -222,6 +227,11 @@ def ProcessVideo(video_path,action_path,num_joints,frame_ratio,weight,mode='tors
           print("Ignoring empty camera frame.")
           # If loading a video, use 'break' instead of 'continue'.
           break
+        t_current = time.time()  #cvhadessun add 
+        if t_current-t_sample<time_interval:
+            continue
+        t_sample = t_current
+        #
 
         # Flip the image horizontally for a later selfie-view display, and convert
         # the BGR image to RGB.
