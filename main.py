@@ -14,7 +14,7 @@ weight = np.ones([12, 3])
 weight[8:, -1] = 0
 # print(weight)
 d, a = ProcessVideo('data/3-action-test.mp4',
-                    '/data/action-1/norm-action.txt',
+                    'data/action-1/norm-action.txt',
                     12, 30, weight, mode='torso')
 
 
