@@ -62,7 +62,10 @@ def Vector2Angle(v1,v0,v2):
     cos_thelta=(v1_x*v2_x+v1_y*v2_y)/(math.sqrt(v1_x**2+v1_y**2)*math.sqrt(v2_x**2+v2_y**2))
     return math.acos(cos_thelta)
 
-
+def NormJointsV2(joints,root):
+    #more efficient
+    num_joints, _ = joints.shape
+    return  (joints-root)/np.sqrt(np.sum((joints- root)**2,axis=0).reshape(-1))
 
 def GetRoot(joints,mode='torso'):
     #mode 1:left_hip
@@ -82,9 +85,9 @@ def GetRoot(joints,mode='torso'):
 
 
 
-def StandMotionPorcess(video_path,save_txt_path,mode='torso'):
+def StandMotionPorcess(video_path,save_txt_path,debug_output=False,save_imgs_path='images',mode='torso'):
     #process coach motion and save norm_joints and angles
-    # mp_drawing = mp.solutions.drawing_utils
+    mp_drawing = mp.solutions.drawing_utils
     mp_holistic = mp.solutions.holistic
     cap = cv2.VideoCapture(video_path)
     joints=np.zeros([12,2])
@@ -120,8 +123,8 @@ def StandMotionPorcess(video_path,save_txt_path,mode='torso'):
         #     image, results.left_hand_landmarks, mp_holistic.HAND_CONNECTIONS)
         # mp_drawing.draw_landmarks(
         #     image, results.right_hand_landmarks, mp_holistic.HAND_CONNECTIONS)
-        # mp_drawing.draw_landmarks(
-        #     image, results.pose_landmarks, mp_holistic.POSE_CONNECTIONS)
+        mp_drawing.draw_landmarks(
+            image, results.pose_landmarks, mp_holistic.POSE_CONNECTIONS)
         #get  coordinates
 
         # joints_names=[mp_holistic.PoseLandmark.LEFT_SHOULDER,
@@ -152,7 +155,7 @@ def StandMotionPorcess(video_path,save_txt_path,mode='torso'):
         joints[4, 0] = results.pose_landmarks.landmark[mp_holistic.PoseLandmark.LEFT_WRIST].x * image_width
         joints[4, 1] = results.pose_landmarks.landmark[mp_holistic.PoseLandmark.LEFT_WRIST].y * image_height
 
-        joints[5, 0] = results.pose_landmarks.landmark[mp_holistic.PoseLandmark.LEFT_HIP].x * image_width
+        joints[5, 0] = results.pose_landmarks.landmark[mp_holistic.PoseLandmark.RIGHT_WRIST].x * image_width
         joints[5, 1] = results.pose_landmarks.landmark[mp_holistic.PoseLandmark.RIGHT_WRIST].y * image_height
 
         joints[6, 0] = results.pose_landmarks.landmark[mp_holistic.PoseLandmark.LEFT_HIP].x * image_width
@@ -176,15 +179,15 @@ def StandMotionPorcess(video_path,save_txt_path,mode='torso'):
 
         #extend timestamp
         # t1=time.time()
-        
+
         #
         root = GetRoot(joints,mode)
         norm_joints=NormJoints(joints,root)
         angles=AngleGen(norm_joints)
         angle_joints=np.concatenate([norm_joints,angles],axis=1)
-        # print(norm_coord)
         all_frames.append(angle_joints)
-        # cv2.imwrite(os.path.join(save_imgs_path,str(frame)+'.jpg'),image)
+        if debug_output:
+            cv2.imwrite(os.path.join(save_imgs_path,str(frame)+'.jpg'),image)
             # continue
         frame+=1
 
@@ -199,8 +202,9 @@ def StandMotionPorcess(video_path,save_txt_path,mode='torso'):
 
 
 
-def ProcessVideo(video_path,action_path,num_joints,frame_ratio,weight,mode='torso'):
-    # mp_drawing = mp.solutions.drawing_utils
+def ProcessVideo(video_path,action_path,num_joints,frame_ratio,weight,save_path,debug_ouput=False,mode='torso'):
+    if debug_ouput:
+        mp_drawing = mp.solutions.drawing_utils
     mp_holistic = mp.solutions.holistic
     cap = cv2.VideoCapture(video_path)
     joints=np.zeros([num_joints,2])
@@ -210,6 +214,7 @@ def ProcessVideo(video_path,action_path,num_joints,frame_ratio,weight,mode='tors
     frame=1
     time_stamps=[]
     processed_frames=[]
+    processed_imgs=[]
     d=[]
     angle=[]
     t0=time.time()
@@ -246,6 +251,9 @@ def ProcessVideo(video_path,action_path,num_joints,frame_ratio,weight,mode='tors
         image.flags.writeable = True
         image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
         image_height, image_width, _ = image.shape
+        if debug_ouput:
+            mp_drawing.draw_landmarks(
+                image, results.pose_landmarks, mp_holistic.POSE_CONNECTIONS)
         #get  coordinates
         joints[0, 0] = results.pose_landmarks.landmark[mp_holistic.PoseLandmark.LEFT_SHOULDER].x * image_width
         joints[0, 1] = results.pose_landmarks.landmark[mp_holistic.PoseLandmark.LEFT_SHOULDER].y * image_height
@@ -290,6 +298,8 @@ def ProcessVideo(video_path,action_path,num_joints,frame_ratio,weight,mode='tors
 
         processed_frames.append(angle_joints)
         time_stamps.append(t1-t0)
+        if debug_ouput:
+            processed_imgs.append(image)
         
         #time
         
@@ -385,3 +395,111 @@ def ProcessOnePeriod(precessed_frames,stand_frames,weight,timestamps,time_lenght
         angle+=_angle
 
     return d/len(index),angle/len(index)
+
+def comparaJoint(m_data,cam_data,color='#DC143C'):
+    colors1 = '#00CED1'
+    # colors2 = '#DC143C'
+    # colors3 = '#000000'
+
+    area = np.pi * 4 ** 2
+    #
+    # plt.gca().invert_yaxis()
+    # plt.xlim(-1, 1)
+    # plt.ylim(-1, 1)
+    m_root = GetRoot(m_data[:,3:])
+    cam_root = GetRoot(cam_data[:,3:])
+
+    cam_data[:,0:2] = NormJointsV2(cam_data[:,3:],cam_root)
+    # m_root=[0,0]
+    plt.gca().set_aspect('equal', adjustable='box')
+    # plt.scatter(int(cam_root[0]), -int(cam_root[1]), s=area, c='#000000', alpha=0.4, label='m')
+    plt.scatter(m_data[:,0], -m_data[:,1], s=area, c=colors1, alpha=0.4, label='m')
+    plt.scatter(cam_data[:, 0], -cam_data[:, 1], s=area, c=color, alpha=0.4, label='cam')
+    plt.show()
+    return True
+
+
+def visJoints(m_data,cam_data,index):
+    # color = ''
+    colors2 = '#DC143C'
+    colors3 = '#000000'
+    for i in range(len(cam_data)):
+        if i == index:
+            color = '#DC143C'
+        else:
+            color = '#000000'
+
+        #c
+        _=comparaJoint(m_data,cam_data[i],color)
+    return True
+
+
+def jointVote(cam_norm_data,m_norm_data,params_dist):
+    '''to get the vote result in joints ;
+    @input:
+        cam_norm_data:the norm coordinates in camera frame [12,2]([x,y])
+        m_norm_data: the norm coordinates in coach frame [12,2]([x,y])
+        params_dist: the scoring base params of distance between the two corresponding frame joints. [k,alpha,beta]
+    @output:
+        results: the vote result of Euclidean distance between the two corresponding frame joints with params_dist.[12,]
+    '''
+    k,alpha,beta = params_dist
+    #compute the Euclidean distance
+    delta_dist = np.sqrt(np.sum((cam_norm_data-m_norm_data)**2,axis=1)) #((x1-x2)^2+(y1-y2)^2)^1/2
+    #first: use delta_dist minus threshold alpha;
+    results = np.zeros([delta_dist.shape[0]])
+    # the index of joints of Euclidean distance in [0,alpha]
+    ind = np.where((delta_dist-alpha)<=0)
+    # results[ind] = 1.0
+    delta_dist = delta_dist-alpha
+    delta_dist[ind] = 0.0
+    results = np.exp(-k*(delta_dist)) - beta  #y = exp(-kx) -b
+    results[ind] = 1.0
+
+    return results
+
+def angleVote(cam_angle,m_angle,params_angle):
+    '''to get the vote result in angle;
+    @input:
+        cam_angle:the norm vector angle in camera frame [12,]  ,the angle is in [0,pi]
+        m_angle:the norm vector angle in coach frame [12,]  ,the angle is in [0,pi]
+        params_angle: the scoring base params of distance between the two corresponding frame angle. [k,alpha,beta]
+    @output:
+        results: the vote result of delta angle with params_angle,[8,]
+        '''
+
+    k,alpha,beta = params_angle
+
+    #
+    delta_angle = np.abs(cam_angle-m_angle)[:8]
+
+    #
+    ind = np.where((delta_angle-alpha)<=0)
+    delta_angle =delta_angle-alpha
+    delta_angle [ind] = 0.0
+
+    results = np.exp(-k*delta_angle) - beta
+
+    results[ind] = 1.0
+
+    return results
+
+
+def assignWeight(joints_scale,angle_scale,weight):
+    '''to assign the weight on the joints and angle parameters and get the final score between
+    two motion;
+    @input:
+        joints_scale:the vote results of joints ; [12,]
+        angle_scale: the vote results of angle  ;[8,]
+        weight: the scale of (joints_propotion/angle_propotion)
+    @output:
+        final_score: a score to determinate the similarity between two motion  (total score is 100.0)
+    '''
+    joints_score = 100.0 * (1-1/(weight+1))
+    angle_score = 100.0 * (1/(weight+1))
+
+    joints_score = np.sum(joints_score/12 * joints_scale)
+    angle_score = np.sum(angle_score / 8 * angle_scale)
+
+    return joints_scale+angle_score
+
