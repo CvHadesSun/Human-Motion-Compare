@@ -1,4 +1,4 @@
-# # Human-Motion-Compare
+#  Human-Motion-Compare
 implement the  human motion compare in serval seconds
 
 # Ready
@@ -46,7 +46,7 @@ ProcessVideo(video_path,action_path,num_joints,frame_ratio,weight,mode='torso') 
 ![student motion](./images/student.png)
 
 
-#experiments
+# experiments
 
 - example video(contains 3 class motion)
 
@@ -58,3 +58,35 @@ ProcessVideo(video_path,action_path,num_joints,frame_ratio,weight,mode='torso') 
 
 - results:（joints mean distance and angles mean distance）
 ![joints mean distance](./images/joints_dist.png)  ![angles mean distance](./images/angles_dist.png)  
+
+# Some new function
+(add some new function into utils.py file, contains new joints normalization function,about scoring function.etc.
+you can use the parametersTrain.py to find the best parameters adapts human's experiments in motion scoring.)
+
+- new normalization function
+
+![joints norm](./images/jointsnorm.png)
+
+- angles normalization
+
+![angles norm](./images/anglenorm.png)
+
+- score
+
+distance error : angle error is ![propotion](./images/propotion.png) ，if overall score is 100.0:
+
+![scores](./images/scores.png)
+
+- scoring funtion
+
+![funtion](./images/function_score.png)
+
+![picture of funtion ](./images/picture_function.png)
+
+(we design the two group parameters for distance error and angle error.First, the dist_parameter: alpha is for error redundancy, it is maybe in [0,1],
+k controls speed of decent of curve, init value could assign 1, and by testing ,assign other suitable value. beta is to punish the relatively large error value.
+Second, the angle parameters: this error is in [0,pi],so you should assign the relatively small parameters for initialization)
+
+
+
+
