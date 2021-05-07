@@ -91,7 +91,7 @@ Second, the angle parameters: this error is in [0,pi],so you should assign the r
 
 return return joints_scale+angle_score ---> return joints_score+angle_score
 
-# Add the distance feature into score function. （another way to score）
+# Add the distance feature into score function. （add another compare feature into score function）
 
 - pose2dist
 
