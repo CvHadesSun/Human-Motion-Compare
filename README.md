@@ -87,6 +87,15 @@ distance error : angle error is ![propotion](./images/propotion.png) ，if overa
 k controls speed of decent of curve, init value could assign 1, and by testing ,assign other suitable value. beta is to punish the relatively large error value.
 Second, the angle parameters: this error is in [0,pi],so you should assign the relatively small parameters for initialization)
 
+# Fix bug in utils.py:assginWeight
 
+return return joints_scale+angle_score ---> return joints_score+angle_score
+
+# Add the distance feature into score function. （another way to score）
+
+- pose2dist
+
+![dist](./images/dist.png)
+- jointVoteWithDist
 
 
