@@ -20,6 +20,9 @@ params_dist = [1,0.1,0.2]
 params_angle = [1,0.2,0.2]
 weight = 4/3
 
+#
+way = 1 # 0:jointVote 1:jointVoteWithDist
+
 def trainParam(cam_data,m_data,params_dist,params_angle,weight):
     ''' to train parameters;
     @input:
@@ -42,7 +45,10 @@ def trainParam(cam_data,m_data,params_dist,params_angle,weight):
         #
     if debug:
         comparaJoint(cam_data,m_data)
-    S_joints = jointVote(cam_data[:,0:2],m_data[:,0:2],params_dist)
+    if way:
+        S_joints = jointVoteWithDist(cam_data[:, 0:2], m_data[:, 0:2], params_dist)
+    else:
+        S_joints = jointVote(cam_data[:,0:2],m_data[:,0:2],params_dist)
     S_angle = angleVote(cam_data[:,2],m_data[:,2],params_angle)
     score = assignWeight(S_joints,S_angle,weight)
 

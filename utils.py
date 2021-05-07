@@ -432,6 +432,23 @@ def visJoints(m_data,cam_data,index):
         #c
         _=comparaJoint(m_data,cam_data[i],color)
     return True
+def jointVoteWithDist(cam_norm_data,m_norm_data,params_dist):
+    '''use results of pose2dist to compute the error score weight'''
+    k, alpha, beta = params_dist
+    cam_dist = pose2dist(cam_norm_data)
+    m_dist = pose2dist(m_norm_data)
+    delta_dist = np.abs(cam_dist-m_dist)
+    #first: use delta_dist minus threshold alpha;
+    results = np.zeros([delta_dist.shape[0]])
+    # the index of joints of Euclidean distance in [0,alpha]
+    ind = np.where((delta_dist-alpha)<=0)
+    # results[ind] = 1.0
+    delta_dist = delta_dist-alpha
+    delta_dist[ind] = 0.0
+    results = np.exp(-k*(delta_dist)) - beta  #y = exp(-kx) -b
+    results[ind] = 1.0
+
+    return results
 
 
 def jointVote(cam_norm_data,m_norm_data,params_dist):
@@ -501,5 +518,13 @@ def assignWeight(joints_scale,angle_scale,weight):
     joints_score = np.sum(joints_score/12 * joints_scale)
     angle_score = np.sum(angle_score / 8 * angle_scale)
 
-    return joints_scale+angle_score
+    return joints_score+angle_score
 
+def pose2dist(norm_joints):
+    '''to transform the norm_joints to some vector distance for scoring'''
+    index=[[5,6],[1,5],[2,4],[4,6],[7,8],[5,9],[5,11],[7,11],[8,10],[10,12],[11,12],[2,12]]
+    np_index = np.array(index,dtype=int)
+    v1 = np_index[:,0]-1
+    v2 = np_index[:,1]-1
+    dist = np.sqrt(np.sum((norm_joints[v1,:]-norm_joints[v2,:])**2,1))
+    return dist
