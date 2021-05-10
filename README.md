@@ -98,4 +98,8 @@ return return joints_scale+angle_score ---> return joints_score+angle_score
 ![dist](./images/dist.png)
 - jointVoteWithDist
 
+# add bebug visualization into the repo
+
+![debug visualization](./images/debug_vis.png)
+
 
