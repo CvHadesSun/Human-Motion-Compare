@@ -23,7 +23,15 @@ weight = 4/3
 #
 way = 1 # 0:jointVote 1:jointVoteWithDist
 
-def trainParam(cam_data,m_data,params_dist,params_angle,weight):
+#video writer config
+if debug:
+    fps = 5
+    size = (546, 956)
+    fourcc = cv2.VideoWriter_fourcc(*'MPEG')
+    videoWriter = cv2.VideoWriter('video.avi', fourcc, fps, (546, 956))
+
+
+def trainParam(cam_data,m_data,params_dist,params_angle,weight,m_image_name= None, cam_image_name=None):
     ''' to train parameters;
     @input:
         ccam_data: a frame of camera data [12,5] ([norm_x,norm_y,angle,posX,posY])
@@ -31,6 +39,7 @@ def trainParam(cam_data,m_data,params_dist,params_angle,weight):
         params_dist: the params of joints
         params_angle: the params of angles
         weight: for weight the score between joints and angles (example:4/3,...)
+        the image name is for debug visualization
     @output:
     '''
     #
@@ -43,14 +52,25 @@ def trainParam(cam_data,m_data,params_dist,params_angle,weight):
         cam_data[:, 2] = AngleGen(cam_data[:,0: 2]).reshape(-1)
 
         #
-    if debug:
-        comparaJoint(cam_data,m_data)
-    if way:
+
+    # if way:
+    #     S_joints = jointVoteWithDist(cam_data[:, 0:2], m_data[:, 0:2], params_dist)
+    # else:
+    #     S_joints = jointVote(cam_data[:,0:2],m_data[:,0:2],params_dist)
+    if way==1:
         S_joints = jointVoteWithDist(cam_data[:, 0:2], m_data[:, 0:2], params_dist)
-    else:
+    elif way==0:
         S_joints = jointVote(cam_data[:,0:2],m_data[:,0:2],params_dist)
     S_angle = angleVote(cam_data[:,2],m_data[:,2],params_angle)
     score = assignWeight(S_joints,S_angle,weight)
+
+    #visualziation
+    if debug:
+        # comparaJoint(cam_data,m_data)
+        comparaJointWithScore(cam_data, m_data, score=score, S_joints=S_joints, S_angle=S_angle)
+        plot_img = cv2.imread('demo.png')
+        concat_image=concateImg(cam_image_name,m_image_name,plot_img)
+        videoWriter.write(concat_image)
 
     return score
 def list2numpy(l):
@@ -77,16 +97,18 @@ def readDate(file_dir,params_dist,params_angle,weight):
 
     for frame in frames:
         #coach data
-        m_image_name = frame['modelBmpPath']
+        # m_image_name = frame['modelBmpPath']
+        m_image_name = os.path.join(root, file_dir, frame['modelBmpPath'])
         m_data = list2numpy(frame['modelData'])
 
         #camera data
-        cam_image_name = frame["cameraData"][0]['bmpPath']
+        # cam_image_name = frame["cameraData"][0]['bmpPath']
+        cam_image_name = os.path.join(root, file_dir, frame["cameraData"][0]['bmpPath'])
         cam_data = list2numpy(frame['cameraData'][0]['data'])
 
         #compute the score
 
-        scores.append(trainParam(cam_data,m_data,params_dist,params_angle,weight))
+        scores.append(trainParam(cam_data,m_data,params_dist,params_angle,weight,m_image_name,cam_image_name))
 
     return scores
 
@@ -100,7 +122,7 @@ def readDate(file_dir,params_dist,params_angle,weight):
 readDate('DATA_1706_HighPlankKneetoElbow',params_dist,params_angle,weight)
 
 
-
+videoWriter.release()
 
 
 

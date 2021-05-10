@@ -528,3 +528,53 @@ def pose2dist(norm_joints):
     v2 = np_index[:,1]-1
     dist = np.sqrt(np.sum((norm_joints[v1,:]-norm_joints[v2,:])**2,1))
     return dist
+
+def concateImg(cam_img_name,m_img_name,plot_img):
+    ''''concatenate the two original image and joints comparation result with scores.'''
+    m_image = cv2.imread(m_img_name)
+    m_size = np.array(m_image.shape[0:2]) / 2
+    m_image = cv2.resize(m_image, (int(m_size[1]), int(m_size[0])), interpolation=cv2.INTER_AREA)
+
+    cam_image = cv2.imread(cam_img_name)
+    cam_image = cv2.resize(cam_image, (int(m_size[1]), int(m_size[0])), interpolation=cv2.INTER_AREA)
+    concat_image = np.concatenate((m_image, cam_image), axis=1)
+
+    img = cv2.resize(plot_img, (int(concat_image.shape[1]), int(concat_image.shape[0])), interpolation=cv2.INTER_AREA)
+    concat_image = np.concatenate((concat_image, img), axis=0)
+
+    return concat_image
+
+
+def comparaJointWithScore(cam_data, m_data, color='#DC143C', score=None, S_joints=None, S_angle=None):
+    colors1 = '#00CED1'
+    # colors2 = '#DC143C'
+    # colors3 = '#000000'
+
+    area = np.pi * 4 ** 2
+    #
+    # plt.gca().invert_yaxis()
+    # plt.xlim(-1, 1)
+    # plt.ylim(-1, 1)
+    m_root = GetRoot(m_data[:, 3:])
+    cam_root = GetRoot(cam_data[:, 3:])
+
+    cam_data[:, 0:2] = NormJointsV2(cam_data[:, 3:], cam_root)
+    m_data[:, 0:2] = NormJointsV2(m_data[:, 3:], m_root)
+    # m_root=[0,0]
+
+    plt.gca().set_aspect('equal', adjustable='box')
+    # plt.scatter(int(cam_root[0]), -int(cam_root[1]), s=area, c='#000000', alpha=0.4, label='m')
+    if score is not None:
+        plt.title('score:{:.2f}, S_joints:{:.2f}, S_angle:{:.2f}'.format(score, np.mean(S_joints), np.mean(S_angle)),
+                  fontsize=20)
+
+    # print('cam_norm_data', cam_data[:,0:2])
+    # print('m_norm_data', m_data[:,0:2])
+    plt.scatter(m_data[:, 0], -m_data[:, 1], s=area, c=colors1, alpha=0.4, label='m')
+    plt.scatter(cam_data[:, 0], -cam_data[:, 1], s=area, c=color, alpha=0.4, label='cam')
+    plt.savefig("demo.png")
+
+    plt.draw()
+    plt.clf()
+
+    return plt
