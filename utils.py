@@ -8,6 +8,28 @@ import matplotlib.pyplot as plt
 import time
 
 
+
+def GenerateFileNameFromUrl(url):
+    path = urlsplit(url).path
+    sections = []
+    temp = ""
+    while path != '/':
+        temp = os.path.split(path)
+        path = temp[0]
+        sections.append(temp[1])
+    return sections[0]
+
+
+def DownloadFile(url, localPath="test/"):
+    fileName = GenerateFileNameFromUrl(url)
+    path =  os.path.join(localPath,fileName)
+    r = requests.get(url, allow_redirects=True)
+    f = open(path, 'wb')
+    f.write(r.content)
+    f.close()
+    return path
+
+
 def NormJoints(joints,root):
 
     #joints:all 12 joints
@@ -84,247 +106,265 @@ def GetRoot(joints,mode='torso'):
     return np.array([x/4,y/4])
 
 
-
-def StandMotionPorcess(video_path,save_txt_path,debug_output=False,save_imgs_path='images',mode='torso'):
-    #process coach motion and save norm_joints and angles
+def StandMotionPorcess(video_path, save_txt_path='test', save_imgs_path='test', mode='torso'):
+    # process coach motion and save norm_joints and angles
     mp_drawing = mp.solutions.drawing_utils
     mp_holistic = mp.solutions.holistic
+    # download
+    if (video_path.startswith('http')):
+        print('download ' + video_path)
+        video_path = DownloadFile(video_path, localPath=save_imgs_path)
+        print('download finished, saved at ' + video_path)
+
+    # folder to save images
+    video_name = os.path.splitext(os.path.basename(video_path))[0]
+    print(video_name)
     cap = cv2.VideoCapture(video_path)
-    joints=np.zeros([12,2])
-    frame=0
-    all_frames=[]
+    joints = np.zeros([12, 2])
+    angles = np.zeros([12, 1])
+    frame = 0
+    all_frames = []
+    # all_frames_joints = []
+    Path(os.path.join(save_imgs_path, video_name), ).mkdir(
+        parents=True, exist_ok=True)
+    Path(os.path.join(save_txt_path, video_name), ).mkdir(
+        parents=True, exist_ok=True)
+
     with mp_holistic.Holistic(
-        min_detection_confidence=0.5,
-        min_tracking_confidence=0.5) as holistic:
-      while cap.isOpened():
-        success, image = cap.read()
-        if not success:
-          print("Ignoring empty camera frame.")
-          # If loading a video, use 'break' instead of 'continue'.
-          break
-          # continue
+            min_detection_confidence=0.5,
+            min_tracking_confidence=0.5) as holistic:
+        while cap.isOpened():
+            success, image = cap.read()
+            if not success:
+                print("Ignoring empty camera frame.")
+                # If loading a video, use 'break' instead of 'continue'.
+                break
+                # continue
 
-        # Flip the image horizontally for a later selfie-view display, and convert
-        # the BGR image to RGB.
-        image = cv2.cvtColor(cv2.flip(image, 1), cv2.COLOR_BGR2RGB)
+            # Flip the image horizontally for a later selfie-view display, and convert
+            # the BGR image to RGB.
+            image = cv2.cvtColor(cv2.flip(image, 1), cv2.COLOR_BGR2RGB)
 
-        # To improve performance, optionally mark the image as not writeable to
-        # pass by reference.
-        image.flags.writeable = False
-        results = holistic.process(image)
+            # To improve performance, optionally mark the image as not writeable to
+            # pass by reference.
+            image.flags.writeable = False
+            results = holistic.process(image)
 
-        # Draw landmark annotation on the image.
-        image.flags.writeable = True
-        image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
-        image_height, image_width, _ = image.shape
-        # mp_drawing.draw_landmarks(
-        #     image, results.face_landmarks, mp_holistic.FACE_CONNECTIONS)
-        # mp_drawing.draw_landmarks(
-        #     image, results.left_hand_landmarks, mp_holistic.HAND_CONNECTIONS)
-        # mp_drawing.draw_landmarks(
-        #     image, results.right_hand_landmarks, mp_holistic.HAND_CONNECTIONS)
-        mp_drawing.draw_landmarks(
-            image, results.pose_landmarks, mp_holistic.POSE_CONNECTIONS)
-        #get  coordinates
+            # Draw landmark annotation on the image.
+            image.flags.writeable = True
+            image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+            image_height, image_width, _ = image.shape
+            # mp_drawing.draw_landmarks(
+            #     image, results.face_landmarks, mp_holistic.FACE_CONNECTIONS)
+            # mp_drawing.draw_landmarks(
+            #     image, results.left_hand_landmarks, mp_holistic.HAND_CONNECTIONS)
+            # mp_drawing.draw_landmarks(
+            #     image, results.right_hand_landmarks, mp_holistic.HAND_CONNECTIONS)
+            mp_drawing.draw_landmarks(
+                image, results.pose_landmarks, mp_holistic.POSE_CONNECTIONS)
+            # get  coordinates
 
-        # joints_names=[mp_holistic.PoseLandmark.LEFT_SHOULDER,
-        #              mp_holistic.PoseLandmark.RIGHT_SHOULDER,
-        #              mp_holistic.PoseLandmark.LEFT_ELBOW,
-        #              mp_holistic.PoseLandmark.RIGHT_ELBOW,
-        #              mp_holistic.PoseLandmark.LEFT_WRIST,
-        #              mp_holistic.PoseLandmark.RIGHT_WRIST,
-        #              mp_holistic.PoseLandmark.LEFT_HIP,
-        #              mp_holistic.PoseLandmark.RIGHT_HIP,
-        #              mp_holistic.PoseLandmark.LEFT_KNEE,
-        #              mp_holistic.PoseLandmark.RIGHT_KNEE,
-        #              mp_holistic.PoseLandmark.LEFT_ANKLE,
-        #              mp_holistic.PoseLandmark.RIGHT_ANKLE
-        #              ]
-        joints[0, 0] = results.pose_landmarks.landmark[mp_holistic.PoseLandmark.LEFT_SHOULDER].x * image_width
-        joints[0, 1] = results.pose_landmarks.landmark[mp_holistic.PoseLandmark.LEFT_SHOULDER].y * image_height
-
-        joints[1, 0] = results.pose_landmarks.landmark[mp_holistic.PoseLandmark.RIGHT_SHOULDER].x * image_width
-        joints[1, 1] = results.pose_landmarks.landmark[mp_holistic.PoseLandmark.RIGHT_SHOULDER].y * image_height
-
-        joints[2, 0] = results.pose_landmarks.landmark[mp_holistic.PoseLandmark.LEFT_ELBOW].x * image_width
-        joints[2, 1] = results.pose_landmarks.landmark[mp_holistic.PoseLandmark.LEFT_ELBOW].y * image_height
-
-        joints[3, 0] = results.pose_landmarks.landmark[mp_holistic.PoseLandmark.RIGHT_ELBOW].x * image_width
-        joints[3, 1] = results.pose_landmarks.landmark[mp_holistic.PoseLandmark.RIGHT_ELBOW].y * image_height
-
-        joints[4, 0] = results.pose_landmarks.landmark[mp_holistic.PoseLandmark.LEFT_WRIST].x * image_width
-        joints[4, 1] = results.pose_landmarks.landmark[mp_holistic.PoseLandmark.LEFT_WRIST].y * image_height
-
-        joints[5, 0] = results.pose_landmarks.landmark[mp_holistic.PoseLandmark.RIGHT_WRIST].x * image_width
-        joints[5, 1] = results.pose_landmarks.landmark[mp_holistic.PoseLandmark.RIGHT_WRIST].y * image_height
-
-        joints[6, 0] = results.pose_landmarks.landmark[mp_holistic.PoseLandmark.LEFT_HIP].x * image_width
-        joints[6, 1] = results.pose_landmarks.landmark[mp_holistic.PoseLandmark.LEFT_HIP].y * image_height
-
-        joints[7, 0] = results.pose_landmarks.landmark[mp_holistic.PoseLandmark.RIGHT_HIP].x * image_width
-        joints[7, 1] = results.pose_landmarks.landmark[mp_holistic.PoseLandmark.RIGHT_HIP].y * image_height
-
-        joints[8, 0] = results.pose_landmarks.landmark[mp_holistic.PoseLandmark.LEFT_KNEE].x * image_width
-        joints[8, 1] = results.pose_landmarks.landmark[mp_holistic.PoseLandmark.LEFT_KNEE].y * image_height
-
-        joints[9, 0] = results.pose_landmarks.landmark[mp_holistic.PoseLandmark.RIGHT_KNEE].x * image_width
-        joints[9, 1] = results.pose_landmarks.landmark[mp_holistic.PoseLandmark.RIGHT_KNEE].y * image_height
-
-        joints[10, 0] = results.pose_landmarks.landmark[mp_holistic.PoseLandmark.LEFT_ANKLE].x * image_width
-        joints[10, 1] = results.pose_landmarks.landmark[mp_holistic.PoseLandmark.LEFT_ANKLE].y * image_height
-
-        joints[11, 0] = results.pose_landmarks.landmark[mp_holistic.PoseLandmark.RIGHT_ANKLE].x * image_width
-        joints[11, 1] = results.pose_landmarks.landmark[mp_holistic.PoseLandmark.RIGHT_ANKLE].y * image_height
+            # joints_names=[mp_holistic.PoseLandmark.LEFT_SHOULDER,
+            #              mp_holistic.PoseLandmark.RIGHT_SHOULDER,
+            #              mp_holistic.PoseLandmark.LEFT_ELBOW,
+            #              mp_holistic.PoseLandmark.RIGHT_ELBOW,
+            #              mp_holistic.PoseLandmark.LEFT_WRIST,
+            #              mp_holistic.PoseLandmark.RIGHT_WRIST,
+            #              mp_holistic.PoseLandmark.LEFT_HIP,
+            #              mp_holistic.PoseLandmark.RIGHT_HIP,
+            #              mp_holistic.PoseLandmark.LEFT_KNEE,
+            #              mp_holistic.PoseLandmark.RIGHT_KNEE,
+            #              mp_holistic.PoseLandmark.LEFT_ANKLE,
+            #              mp_holistic.PoseLandmark.RIGHT_ANKLE
+            #              ]
+            if results.pose_landmarks is None:
+                joints[:] = 0
+                norm_joints = joints
+                angles[:] = 0
 
 
-        #extend timestamp
-        # t1=time.time()
 
+            else:
+                joints[0, 0] = results.pose_landmarks.landmark[mp_holistic.PoseLandmark.LEFT_SHOULDER].x * image_width
+                joints[0, 1] = results.pose_landmarks.landmark[mp_holistic.PoseLandmark.LEFT_SHOULDER].y * image_height
+
+                joints[1, 0] = results.pose_landmarks.landmark[mp_holistic.PoseLandmark.RIGHT_SHOULDER].x * image_width
+                joints[1, 1] = results.pose_landmarks.landmark[mp_holistic.PoseLandmark.RIGHT_SHOULDER].y * image_height
+
+                joints[2, 0] = results.pose_landmarks.landmark[mp_holistic.PoseLandmark.LEFT_ELBOW].x * image_width
+                joints[2, 1] = results.pose_landmarks.landmark[mp_holistic.PoseLandmark.LEFT_ELBOW].y * image_height
+
+                joints[3, 0] = results.pose_landmarks.landmark[mp_holistic.PoseLandmark.RIGHT_ELBOW].x * image_width
+                joints[3, 1] = results.pose_landmarks.landmark[mp_holistic.PoseLandmark.RIGHT_ELBOW].y * image_height
+
+                joints[4, 0] = results.pose_landmarks.landmark[mp_holistic.PoseLandmark.LEFT_WRIST].x * image_width
+                joints[4, 1] = results.pose_landmarks.landmark[mp_holistic.PoseLandmark.LEFT_WRIST].y * image_height
+
+                joints[5, 0] = results.pose_landmarks.landmark[mp_holistic.PoseLandmark.RIGHT_WRIST].x * image_width
+                joints[5, 1] = results.pose_landmarks.landmark[mp_holistic.PoseLandmark.RIGHT_WRIST].y * image_height
+
+                joints[6, 0] = results.pose_landmarks.landmark[mp_holistic.PoseLandmark.LEFT_HIP].x * image_width
+                joints[6, 1] = results.pose_landmarks.landmark[mp_holistic.PoseLandmark.LEFT_HIP].y * image_height
+
+                joints[7, 0] = results.pose_landmarks.landmark[mp_holistic.PoseLandmark.RIGHT_HIP].x * image_width
+                joints[7, 1] = results.pose_landmarks.landmark[mp_holistic.PoseLandmark.RIGHT_HIP].y * image_height
+
+                joints[8, 0] = results.pose_landmarks.landmark[mp_holistic.PoseLandmark.LEFT_KNEE].x * image_width
+                joints[8, 1] = results.pose_landmarks.landmark[mp_holistic.PoseLandmark.LEFT_KNEE].y * image_height
+
+                joints[9, 0] = results.pose_landmarks.landmark[mp_holistic.PoseLandmark.RIGHT_KNEE].x * image_width
+                joints[9, 1] = results.pose_landmarks.landmark[mp_holistic.PoseLandmark.RIGHT_KNEE].y * image_height
+
+                joints[10, 0] = results.pose_landmarks.landmark[mp_holistic.PoseLandmark.LEFT_ANKLE].x * image_width
+                joints[10, 1] = results.pose_landmarks.landmark[mp_holistic.PoseLandmark.LEFT_ANKLE].y * image_height
+
+                joints[11, 0] = results.pose_landmarks.landmark[mp_holistic.PoseLandmark.RIGHT_ANKLE].x * image_width
+                joints[11, 1] = results.pose_landmarks.landmark[mp_holistic.PoseLandmark.RIGHT_ANKLE].y * image_height
+
+                # extend timestamp
+                # t1=time.time()
+
+                #
+
+                root = GetRoot(joints, mode)
+                norm_joints = NormJoints(joints, root)
+                angles = AngleGen(norm_joints)
+
+            angle_joints = np.concatenate([norm_joints, angles, joints], axis=1)
+            # angle_joints = np.concatenate([angle_joints,joints],)
+            all_frames.append(angle_joints)
+            cv2.imwrite(os.path.join(save_imgs_path,
+                                     video_name, str(frame) + '.jpg'), image)
+            frame += 1
+
+            # cv2.imshow('MediaPipe Holistic', image)
+            # if cv2.waitKey(5) & 0xFF == 27:
+            #   break
+
+            # all_frames_joints.append(joints)
+        print(all_frames)
+        np_frames = np.concatenate(all_frames, axis=0)  # [12*num_frames,2+1+2]
+        # np_frames_joints = np.concatenate(all_frames_joints, axis=0)
         #
-        root = GetRoot(joints,mode)
-        norm_joints=NormJoints(joints,root)
-        angles=AngleGen(norm_joints)
-        angle_joints=np.concatenate([norm_joints,angles],axis=1)
-        all_frames.append(angle_joints)
-        if debug_output:
-            cv2.imwrite(os.path.join(save_imgs_path,str(frame)+'.jpg'),image)
-            # continue
-        frame+=1
-
-        # cv2.imshow('MediaPipe Holistic', image)
-        # if cv2.waitKey(5) & 0xFF == 27:
-        #   break
-      np_frames=np.concatenate(all_frames,axis=0)
-      np.savetxt(os.path.join(save_txt_path,'norm-action.txt'),np_frames)
+        np.savetxt(os.path.join(save_txt_path, video_name + '.txt'), np_frames)
 
     cap.release()
     cv2.destroyAllWindows()
 
 
-
-def ProcessVideo(video_path,action_path,num_joints,frame_ratio,weight,save_path,debug_ouput=False,mode='torso'):
-    if debug_ouput:
-        mp_drawing = mp.solutions.drawing_utils
+def ProcessVideo(video_path, action_path, num_joints, frame_ratio, weight, mode='torso'):
+    # mp_drawing = mp.solutions.drawing_utils
     mp_holistic = mp.solutions.holistic
     cap = cv2.VideoCapture(video_path)
-    joints=np.zeros([num_joints,2])
-    action=np.loadtxt(action_path)
-    num_frames=action.shape[0]/num_joints
-    time_length=num_frames/frame_ratio
-    frame=1
-    time_stamps=[]
-    processed_frames=[]
-    processed_imgs=[]
-    d=[]
-    angle=[]
-    t0=time.time()
+    joints = np.zeros([num_joints, 2])
+    action = np.loadtxt(action_path)
+    num_frames = action.shape[0]/num_joints
+    time_length = num_frames/frame_ratio
+    frame = 1
+    time_stamps = []
+    processed_frames = []
+    d = []
+    angle = []
+    t0 = time.time()
 
-    #cvhadessun add 
+    # cvhadessun add
     t_sample = time.time()
     time_interval = 1/5
     #
     with mp_holistic.Holistic(
-        min_detection_confidence=0.5,
-        min_tracking_confidence=0.5) as holistic:
-      while cap.isOpened():
-        success, image = cap.read()
-        if not success:
-          print("Ignoring empty camera frame.")
-          # If loading a video, use 'break' instead of 'continue'.
-          break
-        t_current = time.time()  #cvhadessun add 
-        if t_current-t_sample<time_interval:
-            continue
-        t_sample = t_current
-        #
-
-        # Flip the image horizontally for a later selfie-view display, and convert
-        # the BGR image to RGB.
-        image = cv2.cvtColor(cv2.flip(image, 1), cv2.COLOR_BGR2RGB)
-        # To improve performance, optionally mark the image as not writeable to
-        # pass by reference.
-        image.flags.writeable = False
-        results = holistic.process(image)
-
-        t1=time.time()
-        # Draw landmark annotation on the image.
-        image.flags.writeable = True
-        image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
-        image_height, image_width, _ = image.shape
-        if debug_ouput:
-            mp_drawing.draw_landmarks(
-                image, results.pose_landmarks, mp_holistic.POSE_CONNECTIONS)
-        #get  coordinates
-        joints[0, 0] = results.pose_landmarks.landmark[mp_holistic.PoseLandmark.LEFT_SHOULDER].x * image_width
-        joints[0, 1] = results.pose_landmarks.landmark[mp_holistic.PoseLandmark.LEFT_SHOULDER].y * image_height
-
-        joints[1, 0] = results.pose_landmarks.landmark[mp_holistic.PoseLandmark.RIGHT_SHOULDER].x * image_width
-        joints[1, 1] = results.pose_landmarks.landmark[mp_holistic.PoseLandmark.RIGHT_SHOULDER].y * image_height
-
-        joints[2, 0] = results.pose_landmarks.landmark[mp_holistic.PoseLandmark.LEFT_ELBOW].x * image_width
-        joints[2, 1] = results.pose_landmarks.landmark[mp_holistic.PoseLandmark.LEFT_ELBOW].y * image_height
-
-        joints[3, 0] = results.pose_landmarks.landmark[mp_holistic.PoseLandmark.RIGHT_ELBOW].x * image_width
-        joints[3, 1] = results.pose_landmarks.landmark[mp_holistic.PoseLandmark.RIGHT_ELBOW].y * image_height
-
-        joints[4, 0] = results.pose_landmarks.landmark[mp_holistic.PoseLandmark.LEFT_WRIST].x * image_width
-        joints[4, 1] = results.pose_landmarks.landmark[mp_holistic.PoseLandmark.LEFT_WRIST].y * image_height
-
-        joints[5, 0] = results.pose_landmarks.landmark[mp_holistic.PoseLandmark.LEFT_HIP].x * image_width
-        joints[5, 1] = results.pose_landmarks.landmark[mp_holistic.PoseLandmark.RIGHT_WRIST].y * image_height
-
-        joints[6, 0] = results.pose_landmarks.landmark[mp_holistic.PoseLandmark.LEFT_HIP].x * image_width
-        joints[6, 1] = results.pose_landmarks.landmark[mp_holistic.PoseLandmark.LEFT_HIP].y * image_height
-
-        joints[7, 0] = results.pose_landmarks.landmark[mp_holistic.PoseLandmark.RIGHT_HIP].x * image_width
-        joints[7, 1] = results.pose_landmarks.landmark[mp_holistic.PoseLandmark.RIGHT_HIP].y * image_height
-
-        joints[8, 0] = results.pose_landmarks.landmark[mp_holistic.PoseLandmark.LEFT_KNEE].x * image_width
-        joints[8, 1] = results.pose_landmarks.landmark[mp_holistic.PoseLandmark.LEFT_KNEE].y * image_height
-
-        joints[9, 0] = results.pose_landmarks.landmark[mp_holistic.PoseLandmark.RIGHT_KNEE].x * image_width
-        joints[9, 1] = results.pose_landmarks.landmark[mp_holistic.PoseLandmark.RIGHT_KNEE].y * image_height
-
-        joints[10, 0] = results.pose_landmarks.landmark[mp_holistic.PoseLandmark.LEFT_ANKLE].x * image_width
-        joints[10, 1] = results.pose_landmarks.landmark[mp_holistic.PoseLandmark.LEFT_ANKLE].y * image_height
-
-        joints[11, 0] = results.pose_landmarks.landmark[mp_holistic.PoseLandmark.RIGHT_ANKLE].x * image_width
-        joints[11, 1] = results.pose_landmarks.landmark[mp_holistic.PoseLandmark.RIGHT_ANKLE].y * image_height
-
-        root = GetRoot(joints,mode)
-        norm_joints=NormJoints(joints,root)
-        angles=AngleGen(norm_joints)
-        angle_joints=np.concatenate([norm_joints,angles],axis=1)
-
-        processed_frames.append(angle_joints)
-        time_stamps.append(t1-t0)
-        if debug_ouput:
-            processed_imgs.append(image)
-        
-        #time
-        
-        # print(t1-t0)
-        if t1-t0>time_length:
-            np_frames = np.concatenate(processed_frames, axis=0)
-            _d,_angle=ProcessOnePeriod(np_frames,action,weight,time_stamps,time_length,frame_ratio,3)
-            d.append(_d)
-            angle.append(_angle)
-            print(_angle)
+            min_detection_confidence=0.5,
+            min_tracking_confidence=0.5) as holistic:
+        while cap.isOpened():
+            success, image = cap.read()
+            if not success:
+                print("Ignoring empty camera frame.")
+                # If loading a video, use 'break' instead of 'continue'.
+                break
+            t_current = time.time()  # cvhadessun add
+            if t_current-t_sample < time_interval:
+                continue
+            t_sample = t_current
             #
-            frame=0
-            processed_frames=[]
-            time_stamps=[]
-            t0=time.time()
 
+            # Flip the image horizontally for a later selfie-view display, and convert
+            # the BGR image to RGB.
+            image = cv2.cvtColor(cv2.flip(image, 1), cv2.COLOR_BGR2RGB)
+            # To improve performance, optionally mark the image as not writeable to
+            # pass by reference.
+            image.flags.writeable = False
+            results = holistic.process(image)
 
+            t1 = time.time()
+            # Draw landmark annotation on the image.
+            image.flags.writeable = True
+            image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+            image_height, image_width, _ = image.shape
+            # get  coordinates
+            joints[0, 0] = results.pose_landmarks.landmark[mp_holistic.PoseLandmark.LEFT_SHOULDER].x * image_width
+            joints[0, 1] = results.pose_landmarks.landmark[mp_holistic.PoseLandmark.LEFT_SHOULDER].y * image_height
 
-        frame += 1
+            joints[1, 0] = results.pose_landmarks.landmark[mp_holistic.PoseLandmark.RIGHT_SHOULDER].x * image_width
+            joints[1, 1] = results.pose_landmarks.landmark[mp_holistic.PoseLandmark.RIGHT_SHOULDER].y * image_height
 
+            joints[2, 0] = results.pose_landmarks.landmark[mp_holistic.PoseLandmark.LEFT_ELBOW].x * image_width
+            joints[2, 1] = results.pose_landmarks.landmark[mp_holistic.PoseLandmark.LEFT_ELBOW].y * image_height
 
+            joints[3, 0] = results.pose_landmarks.landmark[mp_holistic.PoseLandmark.RIGHT_ELBOW].x * image_width
+            joints[3, 1] = results.pose_landmarks.landmark[mp_holistic.PoseLandmark.RIGHT_ELBOW].y * image_height
+
+            joints[4, 0] = results.pose_landmarks.landmark[mp_holistic.PoseLandmark.LEFT_WRIST].x * image_width
+            joints[4, 1] = results.pose_landmarks.landmark[mp_holistic.PoseLandmark.LEFT_WRIST].y * image_height
+
+            joints[5, 0] = results.pose_landmarks.landmark[mp_holistic.PoseLandmark.RIGHT_WRIST].x * image_width
+            joints[5, 1] = results.pose_landmarks.landmark[mp_holistic.PoseLandmark.RIGHT_WRIST].y * image_height
+
+            joints[6, 0] = results.pose_landmarks.landmark[mp_holistic.PoseLandmark.LEFT_HIP].x * image_width
+            joints[6, 1] = results.pose_landmarks.landmark[mp_holistic.PoseLandmark.LEFT_HIP].y * image_height
+
+            joints[7, 0] = results.pose_landmarks.landmark[mp_holistic.PoseLandmark.RIGHT_HIP].x * image_width
+            joints[7, 1] = results.pose_landmarks.landmark[mp_holistic.PoseLandmark.RIGHT_HIP].y * image_height
+
+            joints[8, 0] = results.pose_landmarks.landmark[mp_holistic.PoseLandmark.LEFT_KNEE].x * image_width
+            joints[8, 1] = results.pose_landmarks.landmark[mp_holistic.PoseLandmark.LEFT_KNEE].y * image_height
+
+            joints[9, 0] = results.pose_landmarks.landmark[mp_holistic.PoseLandmark.RIGHT_KNEE].x * image_width
+            joints[9, 1] = results.pose_landmarks.landmark[mp_holistic.PoseLandmark.RIGHT_KNEE].y * image_height
+
+            joints[10, 0] = results.pose_landmarks.landmark[mp_holistic.PoseLandmark.LEFT_ANKLE].x * image_width
+            joints[10, 1] = results.pose_landmarks.landmark[mp_holistic.PoseLandmark.LEFT_ANKLE].y * image_height
+
+            joints[11, 0] = results.pose_landmarks.landmark[mp_holistic.PoseLandmark.RIGHT_ANKLE].x * image_width
+            joints[11, 1] = results.pose_landmarks.landmark[mp_holistic.PoseLandmark.RIGHT_ANKLE].y * image_height
+
+            root = GetRoot(joints, mode)
+            norm_joints = NormJoints(joints, root)
+            angles = AngleGen(norm_joints)
+            angle_joints = np.concatenate([norm_joints, angles], axis=1)
+
+            processed_frames.append(angle_joints)
+            time_stamps.append(t1-t0)
+
+            # time
+
+            # print(t1-t0)
+            if t1-t0 > time_length:
+                np_frames = np.concatenate(processed_frames, axis=0)
+                _d, _angle = ProcessOnePeriod(
+                    np_frames, action, weight, time_stamps, time_length, frame_ratio, 3)
+                d.append(_d)
+                angle.append(_angle)
+                print(_angle)
+                #
+                frame = 0
+                processed_frames = []
+                time_stamps = []
+                t0 = time.time()
+
+            frame += 1
 
     cap.release()
     cv2.destroyAllWindows()
-    return d,angle
+    return d, angle
 
 
 
